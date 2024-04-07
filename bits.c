@@ -1,5 +1,3 @@
-#include<stdio.h>
-
 /* 
  * CS:APP Data Lab 
  * 
@@ -216,7 +214,14 @@ int bitCount(int x) {
  *   Rating: 4 
  */
 int bang(int x) {
-  return 2;
+  x = x | (x >> 16); // Check first half (16)
+  x = x | (x >> 8); // Check second half (8)
+  x = x | (x >> 4); // Check third half (4)
+  x = x | (x >> 2); // Check forth half (2)
+  x = x | (x >> 1); // Check last half (1)
+
+  // Now we have 1 bit integer that shows us whether there is 1 in x from 0 position to last one
+  return ~x & 0x1; 
 }
 
 
@@ -243,8 +248,6 @@ int tmin(void) {
 int fitsBits(int x, int n) {
   int upperBound = 1 << n;
   int lowerBound = 1 >> n;
-  printf("%x\n", upperBound);
-  printf("%x\n", lowerBound);
   return 2;
 }
 
@@ -260,10 +263,11 @@ int fitsBits(int x, int n) {
 int divpwr2(int x, int n) {
   int isNeg = x >> 31;
   int sign = (isNeg & 0x1); // Extract sign
-  int validX = (sign << n) + isNeg; // So here, if the sign is negative (.... 0001) we get 1000 .... otherwise we get zeros
-                                    // Now we need to do (A)-1 step (A=(1<<k))
-  int result = (x + validX) >> n;
-  return result;
+  int validX = (sign << n) + isNeg; // So here, if the sign is negative we shift 1 (sign) by k to left and
+                                    // we add isNeg which is -1 (1111) obtained from right shifting negative integer
+                                    // otherwise we just do all the operations on 0 which doesn't change anything
+                                    // and we get x + 0 = x
+  return (x + validX) >> n;
 }
 
 //  x/y  =  (x + y − 1)/y 
@@ -314,8 +318,13 @@ int isPositive(int x) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+  int diff = y + (~x + 1);  // (~x + 1) is same as -x as I already showed in negate func above
+
+  int signBit = !((diff >> 31) & 1); // 0 or 1 (1 - neg, 0 - pos) and apply not to flip
+  return signBit;
 }
+
+// y - x >= 0
 
 
 /*
