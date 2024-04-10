@@ -237,14 +237,11 @@ int bitCount(int x) {
  *   Rating: 4 
  */
 int bang(int x) {
-  x = x | (x >> 16); // Check first half (16)
-  x = x | (x >> 8); // Check second half (8)
-  x = x | (x >> 4); // Check third half (4)
-  x = x | (x >> 2); // Check forth half (2)
-  x = x | (x >> 1); // Check last half (1)
+  int sign = x >> 31;              // 0 or 1
+  int comp2sign = (~x + 1) >> 31;  // 1 or 0
 
-  // Now we have 1 bit integer that shows us whether there is 1 in x from 0 position to last one
-  return ~x & 0x1; 
+  
+  return (sign | comp2sign) + 1;
 }
 
 
@@ -269,10 +266,6 @@ int tmin(void) {
  *   Rating: 2
  */
 int fitsBits(int x, int n) {
-  // int temp = x >> (~((~n) + 1));
-  // int flag = (! temp | !( temp + 1));
-  // return flag;
-  
   int m = n + ~0x0;  // Same as n-1
   
   int sign = ( x >> 31 ) & 0x1;  // get sign
@@ -341,7 +334,7 @@ int negate(int x) {
  */
 int isPositive(int x) {
   int mask = 0x1;
-  return !((x >> 31) & mask) & !!x;
+  return !((x >> 31) & mask) & !!x;  // !! same as != 0
 }
 
 // 0000 .... 0001
@@ -361,7 +354,7 @@ int isPositive(int x) {
 int isLessOrEqual(int x, int y) {
   int diff = y + (~x + 1);  // (~x + 1) is same as -x as I already showed in negate func above
 
-  int signBit = !((diff >> 31) & 1); // 0 or 1 (1 - neg, 0 - pos) and apply not to flip
+  int signBit = !((diff >> 31) & 0x1); // 0 or 1 (1 - neg, 0 - pos) and apply not to flip
   return signBit;
 }
 
@@ -399,12 +392,12 @@ int ilog2(int x) {
  *   Rating: 2
  */
 unsigned float_neg(unsigned uf) {
-  unsigned expo = (uf >> 23) & 0xFF;  // unsigned fracc = uf & ~(~0 <<23);
-  unsigned fracc = uf << 9;
-  if(expo == 0xFF && fracc != 0x00){
+  unsigned expo = (uf >> 23) & 0xFF;  // shit the mantissa and get expo
+  unsigned fracc = uf << 9; // shift away sign and expo bits (1 & 8)
+  if(expo == 0xFF && fracc != 0x00) {
     return uf;
   }
-  return uf ^ (1<<31);
+  return uf ^ (1<<31); // negate 1000 0000 .... 0000
 }
 
 
@@ -418,7 +411,55 @@ unsigned float_neg(unsigned uf) {
  *   Rating: 4
  */
 unsigned float_i2f(int x) {
-  return 2;
+  unsigned ans;
+  int tmpx = x;
+  int f = 0;
+  int delta = 0;
+  int tail = 0;
+  int E = 0;
+
+  // handle edge cases
+  if (x == 0)
+    return x;
+
+  if (x == 0x80000000)
+    return 0xcf000000;
+
+  ans = x & 0x80000000; // fixed first place, symbol bit
+
+  if (ans)
+    tmpx = -x; // If x is a negative number, then tempx takes the opposite number of x (positive)
+  
+  // In order to construct a small number segment, we first give up 1, and then add 0 on the tail until 23 digits.
+  while ((tmpx >> E))  // Calculate how many digits of tmpx are there in total?
+    E++;
+    
+  E = E - 1;
+
+  // Take 12345 as an example, the binary expression now is 11000000111001, E=13,
+  tmpx = tmpx << (31 - E); // Then tmpx moves 18 bits to the left, now tmpx has a total of 31 bits
+  
+  //tmpx = 11000000111001 000000000000000000
+  tail = (tmpx >> 8) & 0x007FFFFF; // Move tmpx to the right by 8 bits, give the order code a space, and now tail is
+  
+  //10000001110010000000000
+  f = tmpx & 0xff;
+  
+  // round to an even number
+  delta = (f > 128) || ((f == 128) && (tail & 1));
+  tail += delta;
+
+  E = E + 127; // Calculate the order code, E=e+ offset
+    
+    // If the frac segment is greater than 23 bits, then add a 1 to the exp segment, which means entering one bit and leaving the highest bit at the same time.
+  if (tail >> 23)
+  {
+    tail = tail & 0x007FFFF;
+    E += 1;
+  }
+  ans = ans | E << 23 | tail; // Merge these three paragraphs to get the final answer
+  
+  return ans;
 }
 
 /* 
@@ -433,5 +474,26 @@ unsigned float_i2f(int x) {
  *   Rating: 4
  */
 unsigned float_twice(unsigned uf) {
-  return 2;
+  // Extract sign (1 bit) exp (8 bit) mantissa (23 bit)
+  int signMask = uf & 0x80000000;
+  int expMask = uf & 0x7f800000;
+  int matMask = uf & 0x007fffff;
+
+  int exp_infty = 0xff000000;
+  int tempuf = uf << 1;
+  int ans = uf;
+
+  if((tempuf & exp_infty) == exp_infty) // Get rid of NaN -_-
+    return uf;
+
+	// If the exp section is not 0, then add 1 to the exp paragraph.
+  if(expMask !=0)
+    ans = signMask + matMask + expMask + 0x00800000;
+
+  // If the exp paragraph is 0, it means that it is denormalized. We only need to move the Mmask one digit to the left.
+  // Move left same as 
+  else if(matMask != 0)
+    ans = signMask + expMask + (matMask << 1);
+
+  return ans;
 }
