@@ -203,8 +203,31 @@ int logicalShift(int x, int n) {
  *   Rating: 4
  */
 int bitCount(int x) {
-  return 2;
+  int result = 0;
+  int mask = 0x55 | 0x55 << 8;
+  mask = mask | (mask << 16); // mask = 0101
+  result = x & mask;
+  x = x >> 1;
+  result = result + (x & mask);
+
+  mask = 0x33 | 0x33 << 8;
+  mask = mask | (mask << 16); // mask = 0x33333333
+  result = ((result >> 2) & mask) + (result & mask);
+
+  mask = 0x0F | 0x0F << 8;
+  mask = mask | (mask << 16); // mask = 0x0f0f0f0f
+  result = ((result >> 4) & mask) + (result & mask);
+
+  mask = 0xFF | 0xFF << 16;
+  result = ((result >> 8) & mask) + (result & mask);
+
+  mask = 0xFF | 0xFF << 8;
+  result = ((result >> 16) & mask) + (result & mask);
+
+  return result;
 }
+
+// ^^^ https://www.youtube.com/watch?v=0rdRRURz6IQ - Too hard :D
 
 /* 
  * bang - Compute !x without using !
@@ -246,10 +269,28 @@ int tmin(void) {
  *   Rating: 2
  */
 int fitsBits(int x, int n) {
-  int upperBound = 1 << n;
-  int lowerBound = 1 >> n;
-  return 2;
+  // int temp = x >> (~((~n) + 1));
+  // int flag = (! temp | !( temp + 1));
+  // return flag;
+  
+  int m = n + ~0x0;  // Same as n-1
+  
+  int sign = ( x >> 31 ) & 0x1;  // get sign
+
+  // second, convert the sign into a "mask" (all bits either 0 or 1)
+  int mask = ~(sign + ~0); 
+
+  // then xor with x, all leading bits will go away 
+  x = x ^ mask;
+
+  // now shift right n - 1 times
+  x = x >> m;
+
+  // the result will be zero unless we can't fitbits
+  return !x;
 }
+
+// First (32 - n) + 1 bits will should identical. Then it fits
 
 
 /* 
@@ -335,7 +376,14 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4
  */
 int ilog2(int x) {
-  return 2;
+  int count = 0;
+  count = (!!(x >> 16)) << 4;
+  count = count + ((!!(x >> (8 + count))) << 3);
+  count = count + ((!!(x >> (4 + count))) << 2);
+  count = count + ((!!(x >> (2 + count))) << 1);
+  count = count + ((!!(x >> (1 + count))) << 0);
+
+  return count;
 }
 
 
@@ -351,7 +399,12 @@ int ilog2(int x) {
  *   Rating: 2
  */
 unsigned float_neg(unsigned uf) {
- return 2;
+  unsigned expo = (uf >> 23) & 0xFF;  // unsigned fracc = uf & ~(~0 <<23);
+  unsigned fracc = uf << 9;
+  if(expo == 0xFF && fracc != 0x00){
+    return uf;
+  }
+  return uf ^ (1<<31);
 }
 
 
